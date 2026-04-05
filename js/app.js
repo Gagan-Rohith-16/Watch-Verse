@@ -14,16 +14,12 @@ import {
 const state = {
   categories: [],
   currentCategoryId: null,
+  activeSection: null,
   items: [],
   searchTerm: "",
   viewFilter: "all",
   addItemDrawerOpen: false,
   expandedItemId: null,
-  visibleSections: {
-    watchedSection: false,
-    toWatchSection: false,
-    starredSection: false
-  },
   popup: null
 };
 
@@ -84,6 +80,10 @@ function navigateCategory(categoryId) {
   window.location.hash = `#/category/${categoryId}`;
 }
 
+function navigateCategorySection(categoryId, section) {
+  window.location.hash = `#/category/${categoryId}/${section}`;
+}
+
 function getCurrentCategory() {
   return state.categories.find((category) => category.id === state.currentCategoryId) || null;
 }
@@ -114,16 +114,79 @@ function getCategoryViewItems() {
   };
 }
 
-function resetVisibleSections() {
-  state.visibleSections = {
-    watchedSection: false,
-    toWatchSection: false,
-    starredSection: false
-  };
+function sectionIdToKey(sectionId) {
+  if (sectionId === "watchedSection") {
+    return "watched";
+  }
+
+  if (sectionId === "toWatchSection") {
+    return "to-watch";
+  }
+
+  if (sectionId === "starredSection") {
+    return "starred";
+  }
+
+  return null;
 }
 
-function isSectionVisible(sectionId) {
-  return Boolean(state.visibleSections?.[sectionId]);
+function sectionKeyToMeta(sectionKey) {
+  if (sectionKey === "watched") {
+    return { id: "watchedSection", title: "Watched", status: "watched", droppable: true };
+  }
+
+  if (sectionKey === "to-watch") {
+    return { id: "toWatchSection", title: "To Watch", status: "to-watch", droppable: true };
+  }
+
+  if (sectionKey === "starred") {
+    return { id: "starredSection", title: "Starred", status: "starred", droppable: false };
+  }
+
+  return null;
+}
+
+function getSearchResults() {
+  const query = state.searchTerm.trim().toLowerCase();
+  if (!query) {
+    return [];
+  }
+
+  return sortItemsByTitle(
+    state.items.filter((item) => item.title.toLowerCase().includes(query))
+  );
+}
+
+function locationLabelForItem(item) {
+  const labels = [item.status === "watched" ? "Watched" : "To Watch"];
+  if (item.starred) {
+    labels.push("Starred");
+  }
+
+  return labels.join(" • ");
+}
+
+function searchResultTemplate(item) {
+  return `
+    <article class="search-result-card">
+      <p class="item-title">${escapeHTML(item.title)}</p>
+      <p class="item-status">${escapeHTML(locationLabelForItem(item))}</p>
+    </article>
+  `;
+}
+
+function categorySearchResultsTemplate() {
+  const query = state.searchTerm.trim();
+  if (!query) {
+    return '<div class="empty-state">Search items to see where they are: Watched, To Watch, or Starred.</div>';
+  }
+
+  const results = getSearchResults();
+  if (results.length === 0) {
+    return '<div class="empty-state">No matching items found.</div>';
+  }
+
+  return `<div class="search-results-list">${results.map((item) => searchResultTemplate(item)).join("")}</div>`;
 }
 
 function filterButtonTemplate(value, label) {
@@ -173,7 +236,8 @@ function itemCardTemplate(item) {
 }
 
 function sectionTileTemplate(sectionId, title, count, description) {
-  const isActive = isSectionVisible(sectionId);
+  const sectionKey = sectionIdToKey(sectionId);
+  const isActive = sectionKey !== null && state.activeSection === sectionKey;
 
   return `
     <button class="section-tile ${isActive ? "active" : ""}" type="button" data-action="scroll-to-section" data-section-id="${sectionId}">
@@ -185,10 +249,6 @@ function sectionTileTemplate(sectionId, title, count, description) {
 }
 
 function listSectionTemplate({ sectionId, status, title, items, droppable = true }) {
-  if (!isSectionVisible(sectionId)) {
-    return "";
-  }
-
   const emptyMessage = sectionId === "starredSection"
     ? "No starred items yet. Mark one with the star button."
     : status === "watched"
@@ -451,6 +511,8 @@ function renderCategoryPage() {
       </section>
 
       <section id="categoryContent" class="category-content">
+        ${state.addItemDrawerOpen ? addItemDrawerTemplate() : ""}
+
         <section class="panel tile-panel">
           <div class="section-tiles">
             ${sectionTileTemplate("watchedSection", "Watched", watchedItems.length, "Completed items")}
@@ -459,12 +521,13 @@ function renderCategoryPage() {
           </div>
         </section>
 
-        ${state.addItemDrawerOpen ? addItemDrawerTemplate() : ""}
-
-        <section class="list-columns">
-          ${listSectionTemplate({ sectionId: "watchedSection", status: "watched", title: "Watched", items: watchedItems })}
-          ${listSectionTemplate({ sectionId: "toWatchSection", status: "to-watch", title: "To Watch", items: toWatchItems })}
-          ${listSectionTemplate({ sectionId: "starredSection", status: "starred", title: "Starred", items: starredItems, droppable: false })}
+        <section class="panel">
+          <div class="panel-title-row">
+            <h3>Search Results</h3>
+          </div>
+          <section id="categorySearchResults" class="list-columns search-results-wrap">
+            ${categorySearchResultsTemplate()}
+          </section>
         </section>
       </section>
 
@@ -473,35 +536,63 @@ function renderCategoryPage() {
   `;
 }
 
-function renderCategoryListsOnly() {
-  if (state.currentCategoryId === null) {
+function renderCategorySearchResultsOnly() {
+  if (state.currentCategoryId === null || state.activeSection !== null) {
     return;
   }
 
-  const categoryContent = viewEl.querySelector("#categoryContent");
-  if (!(categoryContent instanceof HTMLElement)) {
-    renderRoute();
+  const searchResultsEl = viewEl.querySelector("#categorySearchResults");
+  if (!(searchResultsEl instanceof HTMLElement)) {
     return;
   }
 
+  searchResultsEl.innerHTML = categorySearchResultsTemplate();
+}
+
+function renderCategorySectionPage(sectionKey) {
+  const category = getCurrentCategory();
+  if (!category) {
+    renderHome();
+    return;
+  }
+
+  const meta = sectionKeyToMeta(sectionKey);
+  if (!meta) {
+    navigateCategory(category.id);
+    return;
+  }
+
+  homeButton.hidden = false;
   const { watchedItems, toWatchItems, starredItems } = getCategoryViewItems();
+  const items = sectionKey === "watched"
+    ? watchedItems
+    : sectionKey === "to-watch"
+      ? toWatchItems
+      : starredItems;
 
-  categoryContent.innerHTML = `
-    <section class="panel tile-panel">
-      <div class="section-tiles">
-        ${sectionTileTemplate("watchedSection", "Watched", watchedItems.length, "Completed items")}
-        ${sectionTileTemplate("toWatchSection", "To Watch", toWatchItems.length, "Up next")}
-        ${sectionTileTemplate("starredSection", "Starred", starredItems.length, "Special picks")}
-      </div>
-    </section>
+  viewEl.innerHTML = `
+    <div class="category-layout">
+      <section class="panel">
+        <div class="panel-title-row">
+          <div>
+            <h2>${escapeHTML(category.name)} • ${meta.title}</h2>
+          </div>
+          <div class="top-corner-actions">
+            <button class="plus-tab" type="button" data-action="open-add-item">${icon("plus")} New Item</button>
+            <button class="ghost-btn" type="button" data-action="back-category">Back to Category</button>
+            <button class="ghost-btn" type="button" data-action="back-home">${icon("home")} Home</button>
+          </div>
+        </div>
+      </section>
 
-    ${state.addItemDrawerOpen ? addItemDrawerTemplate() : ""}
+      ${state.addItemDrawerOpen ? addItemDrawerTemplate() : ""}
 
-    <section class="list-columns">
-      ${listSectionTemplate({ sectionId: "watchedSection", status: "watched", title: "Watched", items: watchedItems })}
-      ${listSectionTemplate({ sectionId: "toWatchSection", status: "to-watch", title: "To Watch", items: toWatchItems })}
-      ${listSectionTemplate({ sectionId: "starredSection", status: "starred", title: "Starred", items: starredItems, droppable: false })}
-    </section>
+      <section class="list-columns">
+        ${listSectionTemplate({ sectionId: meta.id, status: meta.status, title: meta.title, items, droppable: meta.droppable })}
+      </section>
+
+      ${popupTemplate()}
+    </div>
   `;
 }
 
@@ -510,6 +601,11 @@ function renderRoute() {
 
   if (state.currentCategoryId === null) {
     renderHome();
+    return;
+  }
+
+  if (state.activeSection) {
+    renderCategorySectionPage(state.activeSection);
     return;
   }
 
@@ -534,11 +630,11 @@ async function handleHashRoute() {
 
   if (!hash.startsWith("#/category/")) {
     state.currentCategoryId = null;
+    state.activeSection = null;
     state.searchTerm = "";
     state.viewFilter = "all";
     state.addItemDrawerOpen = false;
     state.expandedItemId = null;
-    resetVisibleSections();
     state.popup = null;
     renderRoute();
     return;
@@ -553,11 +649,12 @@ async function handleHashRoute() {
   }
 
   state.currentCategoryId = maybeId;
+  const sectionKey = parts[3] || null;
+  state.activeSection = ["watched", "to-watch", "starred"].includes(sectionKey) ? sectionKey : null;
   state.searchTerm = "";
   state.viewFilter = "all";
   state.addItemDrawerOpen = false;
   state.expandedItemId = null;
-  resetVisibleSections();
   state.popup = null;
   await loadCurrentCategoryItems();
   renderRoute();
@@ -608,6 +705,13 @@ async function onViewClick(event) {
     return;
   }
 
+  if (action === "back-category") {
+    if (state.currentCategoryId !== null) {
+      navigateCategory(state.currentCategoryId);
+    }
+    return;
+  }
+
   if (action === "close-popup") {
     if (trigger.classList.contains("modal-backdrop") && trigger !== event.target) {
       return;
@@ -629,19 +733,9 @@ async function onViewClick(event) {
       return;
     }
 
-    state.visibleSections = {
-      watchedSection: sectionId === "watchedSection",
-      toWatchSection: sectionId === "toWatchSection",
-      starredSection: sectionId === "starredSection"
-    };
-
-    renderCategoryListsOnly();
-
-    const section = viewEl.querySelector(`#${CSS.escape(sectionId)}`);
-    if (section instanceof HTMLElement && isSectionVisible(sectionId)) {
-      window.requestAnimationFrame(() => {
-        section.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
+    const sectionKey = sectionIdToKey(sectionId);
+    if (sectionKey && state.currentCategoryId !== null) {
+      navigateCategorySection(state.currentCategoryId, sectionKey);
     }
     return;
   }
@@ -790,12 +884,12 @@ async function onViewClick(event) {
 
     if (removedCurrentCategory) {
       state.currentCategoryId = null;
+      state.activeSection = null;
       state.items = [];
       state.searchTerm = "";
       state.viewFilter = "all";
       state.addItemDrawerOpen = false;
       state.expandedItemId = null;
-      resetVisibleSections();
     }
 
     state.popup = null;
@@ -877,7 +971,7 @@ function onViewInput(event) {
 
   if (target instanceof HTMLInputElement && target.id === "searchInput") {
     state.searchTerm = target.value;
-    renderCategoryListsOnly();
+    renderCategorySearchResultsOnly();
   }
 }
 
@@ -927,6 +1021,11 @@ function handleNativeBackAction() {
   }
 
   const isCategoryRoute = window.location.hash.startsWith("#/category/");
+  if (isCategoryRoute && state.currentCategoryId !== null && state.activeSection) {
+    navigateCategory(state.currentCategoryId);
+    return true;
+  }
+
   if (isCategoryRoute || state.currentCategoryId !== null) {
     navigateHome();
     return true;
