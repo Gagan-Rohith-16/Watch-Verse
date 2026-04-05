@@ -406,6 +406,27 @@ function renderCategoryPage() {
   `;
 }
 
+function renderCategoryListsOnly() {
+  if (state.currentCategoryId === null) {
+    return;
+  }
+
+  const listColumns = viewEl.querySelector(".list-columns");
+  if (!(listColumns instanceof HTMLElement)) {
+    renderRoute();
+    return;
+  }
+
+  const matches = filteredItems();
+  const toWatchItems = matches.filter((item) => item.status === "to-watch");
+  const watchedItems = matches.filter((item) => item.status === "watched");
+
+  listColumns.innerHTML = `
+    ${listSectionTemplate("watched", watchedItems)}
+    ${listSectionTemplate("to-watch", toWatchItems)}
+  `;
+}
+
 function renderRoute() {
   document.body.classList.toggle("modal-open", Boolean(state.popup));
 
@@ -737,7 +758,7 @@ function onViewInput(event) {
 
   if (target instanceof HTMLInputElement && target.id === "searchInput") {
     state.searchTerm = target.value;
-    renderRoute();
+    renderCategoryListsOnly();
   }
 }
 
