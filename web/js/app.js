@@ -18,6 +18,8 @@ const state = {
   items: [],
   searchTerm: "",
   viewFilter: "all",
+  homeAddCategoryOpen: false,
+  homeRemoveCategoryOpen: false,
   addItemDrawerOpen: false,
   expandedItemId: null,
   popup: null
@@ -450,19 +452,24 @@ function renderHome() {
       </section>
 
       <section class="panel">
-        <h2>Add a New Category</h2>
-        <form id="addCategoryForm" class="form-row" style="margin-top: 0.8rem;">
-          <div>
-            <label for="categoryNameInput">Category name</label>
-            <input id="categoryNameInput" name="categoryName" type="text" placeholder="e.g. Documentaries" maxlength="36" required />
-          </div>
-          <div class="actions-row">
-            <button class="primary-btn" type="submit">${icon("plus")} Add Category</button>
-          </div>
-          <div class="actions-row" style="margin-top: 0.2rem;">
-            <button class="ghost-btn danger" type="button" data-action="open-remove-categories">${icon("trash")} Remove Categories</button>
-          </div>
-        </form>
+        <div class="home-action-row" style="margin-top: 0.8rem;">
+          <button class="ghost-btn home-round-btn" type="button" data-action="toggle-home-add" aria-label="Add category" title="Add category">${icon("plus")}</button>
+          <button class="ghost-btn danger home-round-btn" type="button" data-action="open-remove-categories" aria-label="Remove category" title="Remove category">${icon("trash")}</button>
+        </div>
+
+        ${state.homeAddCategoryOpen
+          ? `<form id="addCategoryForm" class="form-row" style="margin-top: 0.8rem;">
+              <div>
+                <label for="categoryNameInput">Category name</label>
+                <input id="categoryNameInput" name="categoryName" type="text" placeholder="e.g. Documentaries" maxlength="36" required />
+              </div>
+              <div class="actions-row">
+                <button class="primary-btn" type="submit">${icon("plus")} Add Category</button>
+              </div>
+            </form>`
+          : ""
+        }
+
       </section>
 
       ${popupTemplate()}
@@ -633,6 +640,8 @@ async function handleHashRoute() {
     state.activeSection = null;
     state.searchTerm = "";
     state.viewFilter = "all";
+    state.homeAddCategoryOpen = false;
+    state.homeRemoveCategoryOpen = false;
     state.addItemDrawerOpen = false;
     state.expandedItemId = null;
     state.popup = null;
@@ -653,6 +662,8 @@ async function handleHashRoute() {
   state.activeSection = ["watched", "to-watch", "starred"].includes(sectionKey) ? sectionKey : null;
   state.searchTerm = "";
   state.viewFilter = "all";
+  state.homeAddCategoryOpen = false;
+  state.homeRemoveCategoryOpen = false;
   state.addItemDrawerOpen = false;
   state.expandedItemId = null;
   state.popup = null;
@@ -723,6 +734,24 @@ async function onViewClick(event) {
 
   if (action === "open-add-item") {
     state.addItemDrawerOpen = true;
+    renderRoute();
+    return;
+  }
+
+  if (action === "toggle-home-add") {
+    state.homeAddCategoryOpen = !state.homeAddCategoryOpen;
+    if (state.homeAddCategoryOpen) {
+      state.homeRemoveCategoryOpen = false;
+    }
+    renderRoute();
+    return;
+  }
+
+  if (action === "toggle-home-remove") {
+    state.homeRemoveCategoryOpen = !state.homeRemoveCategoryOpen;
+    if (state.homeRemoveCategoryOpen) {
+      state.homeAddCategoryOpen = false;
+    }
     renderRoute();
     return;
   }
@@ -919,6 +948,7 @@ async function onViewSubmit(event) {
     try {
       await addCategory(name);
       await loadCategories();
+      state.homeAddCategoryOpen = false;
       renderRoute();
       showToast("Category added.", "success");
       form.reset();
