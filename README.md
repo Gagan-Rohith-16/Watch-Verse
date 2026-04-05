@@ -1,6 +1,10 @@
 # Watch Verse Web App
 
-A modern, responsive entertainment tracker app (Watch Verse) that supports:
+## About
+
+Watch Verse is a responsive entertainment tracker for managing movies, anime, and series in one place. It helps you organize what you plan to watch and what you have already completed, with fast search and persistent local storage.
+
+### Core Features
 
 - Categories (Movies, Anime, Series + custom categories)
 - Per-category lists: **To Watch** and **Watched**
@@ -10,10 +14,18 @@ A modern, responsive entertainment tracker app (Watch Verse) that supports:
 - Toast notifications and empty states
 - Persistent storage with **IndexedDB**
 
+## APK Reference
+
+A debug APK is included for quick reference/testing:
+
+- `apk/watch-verse-debug.apk`
+
 ## Folder Structure
 
 ```text
 entertainment-tracker/
+  apk/
+    watch-verse-debug.apk
   index.html
   styles.css
   js/
