@@ -630,8 +630,9 @@ async function onViewClick(event) {
     }
 
     state.visibleSections = {
-      ...(state.visibleSections || {}),
-      [sectionId]: !isSectionVisible(sectionId)
+      watchedSection: sectionId === "watchedSection",
+      toWatchSection: sectionId === "toWatchSection",
+      starredSection: sectionId === "starredSection"
     };
 
     renderCategoryListsOnly();
