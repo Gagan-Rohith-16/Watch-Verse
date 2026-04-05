@@ -19,6 +19,11 @@ const state = {
   viewFilter: "all",
   addItemDrawerOpen: false,
   expandedItemId: null,
+  visibleSections: {
+    watchedSection: false,
+    toWatchSection: false,
+    starredSection: false
+  },
   popup: null
 };
 
@@ -95,6 +100,32 @@ function filteredItems() {
   });
 }
 
+function sortItemsByTitle(items) {
+  return [...items].sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
+}
+
+function getCategoryViewItems() {
+  const matches = filteredItems();
+
+  return {
+    watchedItems: sortItemsByTitle(matches.filter((item) => item.status === "watched")),
+    toWatchItems: matches.filter((item) => item.status === "to-watch"),
+    starredItems: sortItemsByTitle(matches.filter((item) => item.starred))
+  };
+}
+
+function resetVisibleSections() {
+  state.visibleSections = {
+    watchedSection: false,
+    toWatchSection: false,
+    starredSection: false
+  };
+}
+
+function isSectionVisible(sectionId) {
+  return Boolean(state.visibleSections?.[sectionId]);
+}
+
 function filterButtonTemplate(value, label) {
   const isActive = state.viewFilter === value;
 
@@ -141,26 +172,45 @@ function itemCardTemplate(item) {
   `;
 }
 
-function listSectionTemplate(status, items) {
-  const isWatched = status === "watched";
-  const title = isWatched ? "Watched" : "To Watch";
+function sectionTileTemplate(sectionId, title, count, description) {
+  const isActive = isSectionVisible(sectionId);
+
+  return `
+    <button class="section-tile ${isActive ? "active" : ""}" type="button" data-action="scroll-to-section" data-section-id="${sectionId}">
+      <span class="section-tile-count">${count}</span>
+      <span class="section-tile-title">${title}</span>
+      <span class="section-tile-description">${description}</span>
+    </button>
+  `;
+}
+
+function listSectionTemplate({ sectionId, status, title, items, droppable = true }) {
+  if (!isSectionVisible(sectionId)) {
+    return "";
+  }
+
+  const emptyMessage = sectionId === "starredSection"
+    ? "No starred items yet. Mark one with the star button."
+    : status === "watched"
+      ? "Nothing marked as watched yet."
+      : "No items yet. Add one below.";
 
   if (items.length === 0) {
     return `
-      <section class="list-panel list-dropzone" data-drop-status="${status}">
+      <section id="${sectionId}" class="list-panel ${droppable ? "list-dropzone" : ""}" ${droppable ? `data-drop-status="${status}"` : ""}>
         <div class="list-header">
           <h3>${title}</h3>
           <span class="badge">0</span>
         </div>
         <div class="empty-state">
-          ${isWatched ? "Nothing marked as watched yet." : "No items yet. Add one below."}
+          ${emptyMessage}
         </div>
       </section>
     `;
   }
 
   return `
-    <section class="list-panel list-dropzone" data-drop-status="${status}">
+    <section id="${sectionId}" class="list-panel ${droppable ? "list-dropzone" : ""}" ${droppable ? `data-drop-status="${status}"` : ""}>
       <div class="list-header">
         <h3>${title}</h3>
         <span class="badge">${items.length}</span>
@@ -369,11 +419,7 @@ function renderCategoryPage() {
 
   homeButton.hidden = false;
 
-  const matches = filteredItems();
-  const toWatchItems = matches.filter((item) => item.status === "to-watch");
-  const watchedItems = matches
-    .filter((item) => item.status === "watched")
-    .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
+  const { watchedItems, toWatchItems, starredItems } = getCategoryViewItems();
 
   viewEl.innerHTML = `
     <div class="category-layout">
@@ -404,11 +450,22 @@ function renderCategoryPage() {
         </div>
       </section>
 
-      ${state.addItemDrawerOpen ? addItemDrawerTemplate() : ""}
+      <section id="categoryContent" class="category-content">
+        <section class="panel tile-panel">
+          <div class="section-tiles">
+            ${sectionTileTemplate("watchedSection", "Watched", watchedItems.length, "Completed items")}
+            ${sectionTileTemplate("toWatchSection", "To Watch", toWatchItems.length, "Up next")}
+            ${sectionTileTemplate("starredSection", "Starred", starredItems.length, "Special picks")}
+          </div>
+        </section>
 
-      <section class="list-columns">
-        ${listSectionTemplate("watched", watchedItems)}
-        ${listSectionTemplate("to-watch", toWatchItems)}
+        ${state.addItemDrawerOpen ? addItemDrawerTemplate() : ""}
+
+        <section class="list-columns">
+          ${listSectionTemplate({ sectionId: "watchedSection", status: "watched", title: "Watched", items: watchedItems })}
+          ${listSectionTemplate({ sectionId: "toWatchSection", status: "to-watch", title: "To Watch", items: toWatchItems })}
+          ${listSectionTemplate({ sectionId: "starredSection", status: "starred", title: "Starred", items: starredItems, droppable: false })}
+        </section>
       </section>
 
       ${popupTemplate()}
@@ -421,21 +478,30 @@ function renderCategoryListsOnly() {
     return;
   }
 
-  const listColumns = viewEl.querySelector(".list-columns");
-  if (!(listColumns instanceof HTMLElement)) {
+  const categoryContent = viewEl.querySelector("#categoryContent");
+  if (!(categoryContent instanceof HTMLElement)) {
     renderRoute();
     return;
   }
 
-  const matches = filteredItems();
-  const toWatchItems = matches.filter((item) => item.status === "to-watch");
-  const watchedItems = matches
-    .filter((item) => item.status === "watched")
-    .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
+  const { watchedItems, toWatchItems, starredItems } = getCategoryViewItems();
 
-  listColumns.innerHTML = `
-    ${listSectionTemplate("watched", watchedItems)}
-    ${listSectionTemplate("to-watch", toWatchItems)}
+  categoryContent.innerHTML = `
+    <section class="panel tile-panel">
+      <div class="section-tiles">
+        ${sectionTileTemplate("watchedSection", "Watched", watchedItems.length, "Completed items")}
+        ${sectionTileTemplate("toWatchSection", "To Watch", toWatchItems.length, "Up next")}
+        ${sectionTileTemplate("starredSection", "Starred", starredItems.length, "Special picks")}
+      </div>
+    </section>
+
+    ${state.addItemDrawerOpen ? addItemDrawerTemplate() : ""}
+
+    <section class="list-columns">
+      ${listSectionTemplate({ sectionId: "watchedSection", status: "watched", title: "Watched", items: watchedItems })}
+      ${listSectionTemplate({ sectionId: "toWatchSection", status: "to-watch", title: "To Watch", items: toWatchItems })}
+      ${listSectionTemplate({ sectionId: "starredSection", status: "starred", title: "Starred", items: starredItems, droppable: false })}
+    </section>
   `;
 }
 
@@ -472,6 +538,7 @@ async function handleHashRoute() {
     state.viewFilter = "all";
     state.addItemDrawerOpen = false;
     state.expandedItemId = null;
+    resetVisibleSections();
     state.popup = null;
     renderRoute();
     return;
@@ -490,6 +557,7 @@ async function handleHashRoute() {
   state.viewFilter = "all";
   state.addItemDrawerOpen = false;
   state.expandedItemId = null;
+  resetVisibleSections();
   state.popup = null;
   await loadCurrentCategoryItems();
   renderRoute();
@@ -552,6 +620,28 @@ async function onViewClick(event) {
   if (action === "open-add-item") {
     state.addItemDrawerOpen = true;
     renderRoute();
+    return;
+  }
+
+  if (action === "scroll-to-section") {
+    const sectionId = trigger.getAttribute("data-section-id");
+    if (!sectionId) {
+      return;
+    }
+
+    state.visibleSections = {
+      ...(state.visibleSections || {}),
+      [sectionId]: !isSectionVisible(sectionId)
+    };
+
+    renderCategoryListsOnly();
+
+    const section = viewEl.querySelector(`#${CSS.escape(sectionId)}`);
+    if (section instanceof HTMLElement && isSectionVisible(sectionId)) {
+      window.requestAnimationFrame(() => {
+        section.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
     return;
   }
 
@@ -704,6 +794,7 @@ async function onViewClick(event) {
       state.viewFilter = "all";
       state.addItemDrawerOpen = false;
       state.expandedItemId = null;
+      resetVisibleSections();
     }
 
     state.popup = null;
