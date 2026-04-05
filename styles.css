@@ -230,6 +230,22 @@ h3 {
   font-size: 0.84rem;
 }
 
+.search-results-wrap {
+  min-height: 84px;
+}
+
+.search-results-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.search-result-card {
+  border: 1px solid rgba(143, 130, 109, 0.26);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 252, 0.98);
+  padding: 0.65rem 0.75rem;
+}
+
 .list-panel {
   scroll-margin-top: 1rem;
 }
