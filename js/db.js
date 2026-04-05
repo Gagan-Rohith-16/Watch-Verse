@@ -135,6 +135,13 @@ export async function addItem(item) {
     throw new Error("Title is required.");
   }
 
+  const existingItems = await getItemsByCategory(item.categoryId);
+  const duplicate = existingItems.some((existingItem) => existingItem.title.trim().toLowerCase() === cleanedTitle.toLowerCase());
+
+  if (duplicate) {
+    throw new Error("That item already exists in this category.");
+  }
+
   const payload = {
     categoryId: item.categoryId,
     title: cleanedTitle,
@@ -182,6 +189,16 @@ export async function updateItemDetails(itemId, updates) {
 
   if (!nextTitle) {
     throw new Error("Title is required.");
+  }
+
+  const categoryItems = await requestToPromise(store.index("categoryId").getAll(item.categoryId));
+  const duplicate = categoryItems.some((existingItem) => (
+    existingItem.id !== item.id
+    && existingItem.title.trim().toLowerCase() === nextTitle.toLowerCase()
+  ));
+
+  if (duplicate) {
+    throw new Error("That item already exists in this category.");
   }
 
   item.title = nextTitle;
