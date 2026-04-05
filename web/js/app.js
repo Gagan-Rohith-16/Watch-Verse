@@ -6,6 +6,7 @@ import {
   getItemsByCategory,
   addItem,
   updateItemStatus,
+  updateItemStar,
   updateItemDetails,
   deleteItem
 } from "./db.js";
@@ -27,6 +28,7 @@ const iconMap = {
   edit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16v4z"/><path d="m12 6 4 4"/></svg>',
   move: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 8 7-8 7"/><path d="M4 12h11"/></svg>',
   undo: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m16 5-8 7 8 7"/><path d="M20 12H9"/></svg>',
+  star: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3-5.8 3 1.1-6.5L2.5 9.8l6.5-.9Z"/></svg>',
   trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/></svg>'
 };
 
@@ -113,17 +115,23 @@ function itemCardTemplate(item) {
     ? `<img class="poster" src="${escapeHTML(item.image)}" alt="${escapeHTML(item.title)} poster" data-fallback-initial="${escapeHTML(initial)}" loading="lazy" decoding="async" fetchpriority="low" width="58" height="78" referrerpolicy="no-referrer" />`
     : fallback;
 
+  const isStarred = Boolean(item.starred);
+  const starAction = isStarred
+    ? `<button class="action-btn star-btn active" type="button" data-action="toggle-star" data-id="${item.id}" aria-pressed="true">${icon("star")} Unstar</button>`
+    : `<button class="action-btn star-btn" type="button" data-action="toggle-star" data-id="${item.id}" aria-pressed="false">${icon("star")} Star</button>`;
+
   const moveAction = item.status === "to-watch"
     ? `<button class="action-btn" type="button" data-action="move-item" data-id="${item.id}" data-next-status="watched">${icon("move")} Mark Watched</button>`
     : `<button class="action-btn" type="button" data-action="move-item" data-id="${item.id}" data-next-status="to-watch">${icon("undo")} Move To Watch</button>`;
 
   return `
-    <article class="item-card ${isExpanded ? "expanded" : ""}" draggable="true" data-action="toggle-item" data-id="${item.id}" data-draggable-item="${item.id}" data-current-status="${item.status}" aria-expanded="${isExpanded}">
+    <article class="item-card ${isExpanded ? "expanded" : ""} ${isStarred ? "starred" : ""}" draggable="true" data-action="toggle-item" data-id="${item.id}" data-draggable-item="${item.id}" data-current-status="${item.status}" aria-expanded="${isExpanded}">
       ${poster}
       <div class="item-main">
         <p class="item-title">${escapeHTML(item.title)}</p>
-        <p class="item-status">${item.status === "watched" ? "Watched" : "To Watch"} • Tap card for options</p>
+        <p class="item-status">${item.status === "watched" ? "Watched" : "To Watch"}${isStarred ? " • Starred" : ""} • Tap card for options</p>
         <div class="item-actions">
+          ${starAction}
           <button class="action-btn" type="button" data-action="edit-item" data-id="${item.id}">${icon("edit")} Edit</button>
           ${moveAction}
           <button class="action-btn danger" type="button" data-action="delete-item" data-id="${item.id}">${icon("trash")} Remove</button>
@@ -363,7 +371,9 @@ function renderCategoryPage() {
 
   const matches = filteredItems();
   const toWatchItems = matches.filter((item) => item.status === "to-watch");
-  const watchedItems = matches.filter((item) => item.status === "watched");
+  const watchedItems = matches
+    .filter((item) => item.status === "watched")
+    .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
 
   viewEl.innerHTML = `
     <div class="category-layout">
@@ -419,7 +429,9 @@ function renderCategoryListsOnly() {
 
   const matches = filteredItems();
   const toWatchItems = matches.filter((item) => item.status === "to-watch");
-  const watchedItems = matches.filter((item) => item.status === "watched");
+  const watchedItems = matches
+    .filter((item) => item.status === "watched")
+    .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
 
   listColumns.innerHTML = `
     ${listSectionTemplate("watched", watchedItems)}
@@ -588,6 +600,21 @@ async function onViewClick(event) {
     state.expandedItemId = null;
     await refreshAndRenderCategory();
     showToast(nextStatus === "watched" ? "Moved to Watched." : "Moved back to To Watch.", "success");
+    return;
+  }
+
+  if (action === "toggle-star") {
+    const id = Number(trigger.getAttribute("data-id"));
+    const currentItem = state.items.find((item) => item.id === id);
+
+    if (!currentItem) {
+      showToast("Item not found.", "warning");
+      return;
+    }
+
+    await updateItemStar(id, !currentItem.starred);
+    await refreshAndRenderCategory();
+    showToast(currentItem.starred ? "Item unstarred." : "Item starred.", "success");
     return;
   }
 

@@ -147,6 +147,7 @@ export async function addItem(item) {
     title: cleanedTitle,
     image: item.image?.trim() || "",
     status: item.status || "to-watch",
+    starred: Boolean(item.starred),
     createdAt: Date.now()
   };
 
@@ -169,6 +170,22 @@ export async function updateItemStatus(itemId, status) {
   }
 
   item.status = status;
+  await requestToPromise(store.put(item));
+  await txComplete(tx);
+  return item;
+}
+
+export async function updateItemStar(itemId, starred) {
+  const db = await openDatabase();
+  const tx = db.transaction("items", "readwrite");
+  const store = tx.objectStore("items");
+  const item = await requestToPromise(store.get(itemId));
+
+  if (!item) {
+    throw new Error("Item not found.");
+  }
+
+  item.starred = Boolean(starred);
   await requestToPromise(store.put(item));
   await txComplete(tx);
   return item;

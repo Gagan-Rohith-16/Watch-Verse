@@ -407,6 +407,18 @@ select:focus {
   transform: translateY(-1px);
 }
 
+.item-card.starred {
+  border-color: rgba(200, 140, 67, 0.56);
+  box-shadow: inset 0 0 0 1px rgba(200, 140, 67, 0.12);
+}
+
+.item-card.starred .item-title::after {
+  content: "★";
+  color: var(--accent-2);
+  margin-left: 0.35rem;
+  font-size: 0.85em;
+}
+
 .poster {
   width: 58px;
   height: 78px;
@@ -474,6 +486,15 @@ select:focus {
 
 .action-btn.danger {
   color: var(--danger);
+}
+
+.action-btn.star-btn {
+  color: #8d6218;
+}
+
+.action-btn.star-btn.active {
+  background: rgba(248, 232, 194, 0.98);
+  border-color: rgba(200, 140, 67, 0.5);
 }
 
 .filter-row {
